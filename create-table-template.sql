@@ -215,6 +215,7 @@ CREATE TABLE team_members (
     role_in_team VARCHAR(100),
     created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_active       BOOLEAN       NOT NULL DEFAULT TRUE,
     UNIQUE (team_id, user_id)
 );
 
