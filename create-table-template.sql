@@ -65,8 +65,7 @@ CREATE TABLE users (
     is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
     last_login_at  TIMESTAMP,
     created_at     TIMESTAMP    NOT NULL DEFAULT NOW(),
-    updated_at     TIMESTAMP    NOT NULL DEFAULT NOW(),
-    UNIQUE (tenant_id)
+    updated_at     TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE staff_credentials (
@@ -210,11 +209,12 @@ CREATE TABLE teams (
 );
 
 CREATE TABLE team_members (
+    team_member_id        UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
     team_id      UUID         NOT NULL REFERENCES teams(team_id) ON DELETE CASCADE,
     user_id      UUID         NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     role_in_team VARCHAR(100),
     created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (team_id, user_id)
+    UNIQUE (team_id, user_id)
 );
 
 CREATE TABLE complaints(
