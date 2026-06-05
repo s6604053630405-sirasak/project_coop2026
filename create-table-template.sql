@@ -199,6 +199,7 @@ CREATE TABLE status_master (
 CREATE TABLE teams (
     team_id        UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id      UUID         NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    department_id  UUID         REFERENCES departments(department_id),
     team_name      VARCHAR(255) NOT NULL,
     team_code      VARCHAR(100),
     description    TEXT,
