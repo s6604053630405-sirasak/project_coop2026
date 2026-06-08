@@ -65,7 +65,7 @@ CREATE TABLE users (
     is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
     last_login_at  TIMESTAMP,
     created_at     TIMESTAMP    NOT NULL DEFAULT NOW(),
-    updated_at     TIMESTAMP    NOT NULL DEFAULT NOW()
+    updated_at     TIMESTAMP    NOT NULL DEFAULT NOW(),
 );
 
 CREATE TABLE staff_credentials (
@@ -226,12 +226,6 @@ CREATE TABLE complaints(
     tenant_id        UUID          NOT NULL REFERENCES tenants(tenant_id),
     channel_id       UUID          REFERENCES channels(channel_id),
     user_id          UUID          REFERENCES users(user_id),
-    citizen_name     VARCHAR(255),
-    citizen_phone    VARCHAR(20),
-    citizen_email    VARCHAR(255),
-    title            VARCHAR(255)  NOT NULL,
-    detail           TEXT,
-    image_url        TEXT,
     category_id      UUID          REFERENCES categories(category_id),
     subcategory_id   UUID          REFERENCES subcategories(subcategory_id),
     priority_id      UUID          REFERENCES priority_levels(priority_id),
@@ -243,16 +237,16 @@ CREATE TABLE complaints(
     geocoded_at      TIMESTAMP,
     location_accuracy DECIMAL(8,2),
     current_status_id UUID         REFERENCES status_master(status_id),
-    source_channel_detail          VARCHAR(50),
     assigned_team_id UUID          REFERENCES teams(team_id),
     assigned_user_id UUID          REFERENCES users(user_id),
-    is_anonymous     BOOLEAN       NOT NULL DEFAULT FALSE,
     is_public_view   BOOLEAN       NOT NULL DEFAULT TRUE,
     due_date         TIMESTAMP,
     resolved_at      TIMESTAMP,
     closed_at        TIMESTAMP,
     created_at       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    detail           VARCHAR(300),
+    additional_detail VARCHAR(100)
 );
 
 CREATE TABLE complaint_files (
@@ -283,17 +277,60 @@ CREATE TABLE complaint_feedback (
 -- SECTION 6: WORKFLOW LOGS & SLA TRACKING
 
 CREATE TABLE workflow_logs (
-    workflow_log_id UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
-    complaint_id    UUID         NOT NULL REFERENCES complaints(complaint_id) ON DELETE CASCADE,
-    from_status_id  UUID         REFERENCES status_master(status_id),
-    to_status_id    UUID         NOT NULL REFERENCES status_master(status_id),
-    action_type     VARCHAR(100) NOT NULL,
-    action_by       UUID         REFERENCES users(user_id),
-    action_role_id  UUID         REFERENCES roles(role_id),
-    action_note     TEXT,
-    action_datetime TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ip_address      VARCHAR(45)
+    workflow_log_id  UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+    complaint_id     UUID         NOT NULL REFERENCES complaints(complaint_id) ON DELETE CASCADE,
+    from_status_id   UUID         REFERENCES status_master(status_id),
+    to_status_id     UUID         NOT NULL REFERENCES status_master(status_id),
+    action_type      VARCHAR(100) NOT NULL,
+    action_by        UUID         REFERENCES users(user_id),
+    action_role_id   UUID         REFERENCES roles(role_id),
+    action_note      TEXT,
+    action_datetime  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ip_address       VARCHAR(45),
+    pending_reason   VARCHAR(100),
+    assigned_team_id UUID REFERENCES teams(team_id),
+    assigned_user    UUID REFERENCES users(user_id),
+
+    CONSTRAINT chk_action_type CHECK (
+        action_type IN ('SUBMIT','ASSIGNED','RESOLVE','CLOSE','REJECT','REOPEN')),
+    -- pending_reason ต้องมีค่าเมื่อ action_type = PAUSED
+    CONSTRAINT chk_pending_reason CHECK (
+        (action_type = 'PAUSED' AND pending_reason IS NOT NULL)
+        OR action_type != 'PAUSED'
+    ),
+    -- assigned_team_id ต้องมีค่าเมื่อ action_type = ASSIGNED
+    CONSTRAINT chk_assigned_team CHECK (
+        (action_type = 'ASSIGNED' AND assigned_team_id IS NOT NULL)
+        OR action_type != 'ASSIGNED'
+    )
 );
+
+-- ── index เพื่อเพิ่มประสิทธิภาพ query ────────────────────────
+-- ค้นหา log ของ complaint หนึ่งๆ บ่อยที่สุด
+CREATE INDEX idx_workflow_logs_complaint_id
+    ON workflow_logs (complaint_id);
+
+-- filter ตาม action_type เช่น ดูเฉพาะ ASSIGNED หรือ REJECTED
+CREATE INDEX idx_workflow_logs_action_type
+    ON workflow_logs (action_type);
+
+-- filter ตามช่วงเวลา สำหรับ dashboard และ report
+CREATE INDEX idx_workflow_logs_action_datetime
+    ON workflow_logs (action_datetime DESC);
+
+-- ค้นหาว่าเจ้าหน้าที่คนนี้ทำอะไรบ้าง
+CREATE INDEX idx_workflow_logs_action_by
+    ON workflow_logs (action_by);
+    
+-- สิ่งที่เปลี่ยนจาก DDL เดิมที่ส่งมา
+-- รายการ	DDL เดิม	ฉบับแก้ไข
+-- ON DELETE CASCADE	ไม่มี	เพิ่มใน complaint_id เมื่อลบ complaint ลบ log ด้วย
+-- to_status_id	NULL ได้	NOT NULL เพราะทุก action ต้องรู้ว่าไปสถานะไหน
+-- chk_action_type	ไม่มี	จำกัด 7 ค่าที่ถูกต้องเท่านั้น
+-- chk_pending_reason	ไม่มี	บังคับใส่เหตุผลเมื่อ PAUSED
+-- chk_assigned_team	ไม่มี	บังคับใส่ทีมเมื่อ ASSIGNED
+-- index	ไม่มี	เพิ่ม 4 index สำหรับ query ที่ใช้บ่อย 
+
 
 CREATE TABLE sla_tracking (
     sla_id                  UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
