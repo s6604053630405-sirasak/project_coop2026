@@ -1,4 +1,3 @@
-
 INSERT INTO tenants (tenant_id, tenant_code, tenant_name, type, address, logo_url, is_active, created_at, updated_at) VALUES 
 ('00000000-0000-0000-0000-000000000001', 'PAKKRET_CITY', 'เทศบาลนครปากเกร็ด', 'municipality_city', '8/8 หมู่ 4 ถนนแจ้งวัฒนะ ตำบลปากเกร็ด อำเภอปากเกร็ด จังหวัดนนทบุรี 11120', 'https://cdn.example.go.th/logo/pakkret_city.png', TRUE, NOW(), NOW());
 
