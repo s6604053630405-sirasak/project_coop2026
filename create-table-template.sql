@@ -51,12 +51,9 @@ CREATE TABLE role_permissions (
 CREATE TABLE users (
     user_id        UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id      UUID         NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    line_user_id   VARCHAR(100) NOT NULL,
-    username       VARCHAR(100) NOT NULL,
     title_name varchar(50) NOT NULL,
     first_name varchar(255),
     last_name varchar(255),
-    password_hash  VARCHAR(255),
     display_name   VARCHAR(255),
     email          VARCHAR(255),
     phone_number   VARCHAR(20),
@@ -66,6 +63,7 @@ CREATE TABLE users (
     last_login_at  TIMESTAMP,
     created_at     TIMESTAMP    NOT NULL DEFAULT NOW(),
     updated_at     TIMESTAMP    NOT NULL DEFAULT NOW(),
+    line_user_id   VARCHAR(100) NOT NULL
 );
 
 CREATE TABLE staff_credentials (
