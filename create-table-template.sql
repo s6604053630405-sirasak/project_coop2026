@@ -244,7 +244,8 @@ CREATE TABLE complaints(
     created_at       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     detail           VARCHAR(300),
-    additional_detail VARCHAR(100)
+    additional_detail VARCHAR(100),
+    location_deatails VARCHAR(100)
 );
 
 CREATE TABLE complaint_files (
@@ -284,7 +285,6 @@ CREATE TABLE workflow_logs (
     action_role_id   UUID         REFERENCES roles(role_id),
     action_note      TEXT,
     action_datetime  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ip_address       VARCHAR(45),
     pending_reason   VARCHAR(100),
     assigned_team_id UUID REFERENCES teams(team_id),
     assigned_user    UUID REFERENCES users(user_id),
