@@ -333,26 +333,28 @@ CREATE INDEX idx_workflow_logs_action_by
 CREATE TABLE sla_tracking (
     sla_id                  UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
     complaint_id            UUID         NOT NULL REFERENCES complaints(complaint_id) ON DELETE CASCADE,
-    sla_type                VARCHAR(50)  NOT NULL,
-    sla_name                VARCHAR(255),
-    start_time              TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    due_time                TIMESTAMP,
-    target_minutes          INT,
-    response_time_minutes   INT,
-    resolution_time_minutes INT,
+    sla_type                VARCHAR(50)  NOT NULL,      -- 'RESOLUTION' | 'RESPONSE'
+    sla_name                VARCHAR(255),               -- priority code เช่น 'MEDIUM'
+    start_time              TIMESTAMP    NOT NULL,
+    due_time                TIMESTAMP    NOT NULL,
+    target_minutes          INT          NOT NULL,
+    response_time_minutes   NUMERIC(10,2),              -- Python เขียนเมื่อ ASSIGNED
+    resolution_time_minutes NUMERIC(10,2),              -- Python เขียนเมื่อ RESOLVE/CLOSE
     is_breached             BOOLEAN      NOT NULL DEFAULT FALSE,
     breached_at             TIMESTAMP,
     breached_reason         TEXT,
-    sla_status              VARCHAR(20)
-        GENERATED ALWAYS AS (
-            CASE WHEN is_breached THEN 'BREACHED' ELSE 'ON_TIME' END
-        ) STORED,                                                
+    sla_status              VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
     is_active               BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at              TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at              TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (complaint_id, sla_type)
+    UNIQUE (complaint_id, sla_type),
+    CONSTRAINT chk_sla_status CHECK (sla_status IN ('PENDING', 'ON_TIME', 'BREACHED'))
 );
-
+ 
+-- Index สำหรับ query ที่ใช้บ่อย
+CREATE INDEX idx_sla_complaint    ON sla_tracking(complaint_id);
+CREATE INDEX idx_sla_active       ON sla_tracking(is_active) WHERE is_active = TRUE;
+CREATE INDEX idx_sla_breach_check ON sla_tracking(due_time)  WHERE is_active = TRUE AND is_breached = FALSE;
 -- SECTION 7: AI & ANALYTICS
 
 CREATE TABLE ai_analysis (
