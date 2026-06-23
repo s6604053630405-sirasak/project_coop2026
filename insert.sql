@@ -1,3 +1,4 @@
+
 INSERT INTO tenants (tenant_id, tenant_code, tenant_name, type, address, logo_url, is_active, created_at, updated_at) VALUES 
 ('00000000-0000-0000-0000-000000000001', 'PAKKRET_CITY', 'เทศบาลนครปากเกร็ด', 'municipality_city', '8/8 หมู่ 4 ถนนแจ้งวัฒนะ ตำบลปากเกร็ด อำเภอปากเกร็ด จังหวัดนนทบุรี 11120', 'https://cdn.example.go.th/logo/pakkret_city.png', TRUE, NOW(), NOW());
 
@@ -424,3 +425,123 @@ INSERT INTO role_permissions (role_id, permission_id, created_at) VALUES
   ('aaaa0001-0000-0000-0000-000000000004','bb000001-0000-0000-0000-000000000001','2024-06-01 08:00:00'),
   ('aaaa0001-0000-0000-0000-000000000004','bb000001-0000-0000-0000-000000000002','2024-06-01 08:00:00'),
   ('aaaa0001-0000-0000-0000-000000000004','bb000001-0000-0000-0000-000000000023','2024-06-01 08:00:00');
+
+INSERT INTO daily_complaint_summary (
+    summary_date,
+    total_complaints, pending_cases, in_progress_cases,
+    paused_cases, resolved_cases, closed_cases, rejected_cases,
+    sla_breached_cases, sla_on_time_cases, sla_percentage,
+    avg_resolution_hours, new_complaints
+)
+SELECT
+    DATE(c.created_at)                                                  AS summary_date,
+    COUNT(*)                                                            AS total_complaints,
+    COUNT(*) FILTER (WHERE sm.status_code = 'PENDING')                 AS pending_cases,
+    COUNT(*) FILTER (WHERE sm.status_code = 'IN_PROGRESS')             AS in_progress_cases,
+    COUNT(*) FILTER (WHERE sm.status_code = 'PAUSED')                  AS paused_cases,
+    COUNT(*) FILTER (WHERE sm.status_code = 'RESOLVED')                AS resolved_cases,
+    COUNT(*) FILTER (WHERE sm.status_code = 'CLOSED')                  AS closed_cases,
+    COUNT(*) FILTER (WHERE sm.status_code = 'REJECTED')                AS rejected_cases,
+    COUNT(*) FILTER (WHERE s.is_breached = true)                       AS sla_breached_cases,
+    COUNT(*) FILTER (WHERE s.is_breached = false)                      AS sla_on_time_cases,
+    ROUND(
+        100.0 * COUNT(*) FILTER (WHERE s.is_breached = false)
+              / NULLIF(COUNT(s.sla_id), 0), 2
+    )                                                                   AS sla_percentage,
+    ROUND(
+        AVG(s.resolution_time_minutes)
+        FILTER (WHERE s.resolution_time_minutes IS NOT NULL) / 60.0, 2
+    )                                                                   AS avg_resolution_hours,
+    COUNT(*)                                                            AS new_complaints
+FROM complaints c
+JOIN status_master sm ON c.current_status_id = sm.status_id
+LEFT JOIN sla_tracking s
+    ON c.complaint_id = s.complaint_id
+   AND s.sla_type = 'RESOLUTION'
+GROUP BY DATE(c.created_at)
+ORDER BY summary_date;
+
+INSERT INTO category_summary (
+    summary_date, category_id, category_name, category_code,
+    total_cases, pending_cases, in_progress_cases,
+    resolved_cases, closed_cases, rejected_cases,
+    sla_breached_cases, sla_percentage,
+    avg_resolution_hours, share_percentage
+)
+SELECT
+    DATE(c.created_at)                                                  AS summary_date,
+    c.category_id,
+    cat.category_name,
+    cat.category_code,
+    COUNT(*)                                                            AS total_cases,
+    COUNT(*) FILTER (WHERE sm.status_code = 'PENDING')                 AS pending_cases,
+    COUNT(*) FILTER (WHERE sm.status_code = 'IN_PROGRESS')             AS in_progress_cases,
+    COUNT(*) FILTER (WHERE sm.status_code = 'RESOLVED')                AS resolved_cases,
+    COUNT(*) FILTER (WHERE sm.status_code = 'CLOSED')                  AS closed_cases,
+    COUNT(*) FILTER (WHERE sm.status_code = 'REJECTED')                AS rejected_cases,
+    COUNT(*) FILTER (WHERE s.is_breached = true)                       AS sla_breached_cases,
+    ROUND(
+        100.0 * COUNT(*) FILTER (WHERE s.is_breached = false)
+              / NULLIF(COUNT(s.sla_id), 0), 2
+    )                                                                   AS sla_percentage,
+    ROUND(
+        AVG(s.resolution_time_minutes)
+        FILTER (WHERE s.resolution_time_minutes IS NOT NULL) / 60.0, 2
+    )                                                                   AS avg_resolution_hours,
+    ROUND(
+        100.0 * COUNT(*)
+              / NULLIF(SUM(COUNT(*)) OVER (PARTITION BY DATE(c.created_at)), 0), 2
+    )                                                                   AS share_percentage
+FROM complaints c
+JOIN categories cat   ON c.category_id       = cat.category_id
+JOIN status_master sm ON c.current_status_id = sm.status_id
+LEFT JOIN sla_tracking s
+    ON c.complaint_id = s.complaint_id
+   AND s.sla_type = 'RESOLUTION'
+GROUP BY DATE(c.created_at), c.category_id, cat.category_name, cat.category_code
+ORDER BY summary_date;
+
+INSERT INTO area_summary (
+    summary_date, district, province,
+    total_cases, pending_cases, in_progress_cases,
+    resolved_cases, closed_cases,
+    sla_breached_cases, sla_percentage,
+    breach_percentage, risk_level, avg_resolution_hours
+)
+SELECT
+    DATE(c.created_at)                                                  AS summary_date,
+    c.district,
+    COALESCE(c.province, 'นนทบุรี')                                     AS province,
+    COUNT(*)                                                            AS total_cases,
+    COUNT(*) FILTER (WHERE sm.status_code = 'PENDING')                 AS pending_cases,
+    COUNT(*) FILTER (WHERE sm.status_code = 'IN_PROGRESS')             AS in_progress_cases,
+    COUNT(*) FILTER (WHERE sm.status_code = 'RESOLVED')                AS resolved_cases,
+    COUNT(*) FILTER (WHERE sm.status_code = 'CLOSED')                  AS closed_cases,
+    COUNT(*) FILTER (WHERE s.is_breached = true)                       AS sla_breached_cases,
+    ROUND(
+        100.0 * COUNT(*) FILTER (WHERE s.is_breached = false)
+              / NULLIF(COUNT(s.sla_id), 0), 2
+    )                                                                   AS sla_percentage,
+    ROUND(
+        100.0 * COUNT(*) FILTER (WHERE s.is_breached = true)
+              / NULLIF(COUNT(*), 0), 2
+    )                                                                   AS breach_percentage,
+    -- risk_level: breach% > 40% = HIGH, > 30% = MEDIUM, ≤ 30% = LOW
+    CASE
+        WHEN (COUNT(*) FILTER (WHERE s.is_breached = true)::numeric
+              / NULLIF(COUNT(*), 0)) > 0.40 THEN 'HIGH'
+        WHEN (COUNT(*) FILTER (WHERE s.is_breached = true)::numeric
+              / NULLIF(COUNT(*), 0)) > 0.30 THEN 'MEDIUM'
+        ELSE 'LOW'
+    END                                                                 AS risk_level,
+    ROUND(
+        AVG(s.resolution_time_minutes)
+        FILTER (WHERE s.resolution_time_minutes IS NOT NULL) / 60.0, 2
+    )                                                                   AS avg_resolution_hours
+FROM complaints c
+JOIN status_master sm ON c.current_status_id = sm.status_id
+LEFT JOIN sla_tracking s
+    ON c.complaint_id = s.complaint_id
+   AND s.sla_type = 'RESOLUTION'
+GROUP BY DATE(c.created_at), c.district, c.province
+ORDER BY summary_date;
